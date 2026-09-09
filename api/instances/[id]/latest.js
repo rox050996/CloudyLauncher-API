@@ -2,15 +2,21 @@ import {
   supabase
 } from "../../../lib/supabase.js";
 
+import {
+  validateInstanceAccess
+} from "../../../lib/instanceAuth.js";
+
 
 export default async function handler(
   request,
   response
 ) {
 
-  /* =====================================================
-     SOLO GET
-  ===================================================== */
+  response.setHeader(
+    "Cache-Control",
+    "no-store"
+  );
+
 
   if (
     request.method !==
@@ -30,10 +36,6 @@ export default async function handler(
 
   }
 
-
-  /* =====================================================
-     ID DE INSTANCIA
-  ===================================================== */
 
   const {
     id
@@ -62,9 +64,9 @@ export default async function handler(
 
   try {
 
-    /* ===================================================
-       BUSCAR INSTANCIA
-    =================================================== */
+    /* =====================================================
+       INSTANCIA
+    ===================================================== */
 
     const {
       data: instance,
@@ -129,9 +131,47 @@ export default async function handler(
     }
 
 
-    /* ===================================================
-       BUSCAR RELEASE ACTUAL
-    =================================================== */
+    /* =====================================================
+       PROTEGER INSTANCIAS PRIVADAS
+    ===================================================== */
+
+    if (
+      instance.visibility ===
+      "private"
+    ) {
+
+      const access =
+        await validateInstanceAccess(
+          request,
+          instance.id
+        );
+
+
+      if (
+        !access.ok
+      ) {
+
+        return response
+          .status(
+            access.status
+          )
+          .json({
+
+            ok: false,
+
+            message:
+              access.message
+
+          });
+
+      }
+
+    }
+
+
+    /* =====================================================
+       RELEASE ACTUAL
+    ===================================================== */
 
     const {
       data: release,
@@ -198,9 +238,9 @@ export default async function handler(
     }
 
 
-    /* ===================================================
-       LEER MANIFEST PRIVADO DE STORAGE
-    =================================================== */
+    /* =====================================================
+       MANIFEST PRIVADO
+    ===================================================== */
 
     const {
       data: manifestFile,
@@ -238,9 +278,9 @@ export default async function handler(
       );
 
 
-    /* ===================================================
+    /* =====================================================
        RESPUESTA
-    =================================================== */
+    ===================================================== */
 
     return response
       .status(200)
@@ -276,7 +316,6 @@ export default async function handler(
 
         },
 
-
         release: {
 
           version:
@@ -294,7 +333,6 @@ export default async function handler(
             release.published_at
 
         },
-
 
         manifest
 
@@ -318,10 +356,6 @@ export default async function handler(
         message:
           "No se pudo obtener la versión más reciente.",
 
-        /*
-         * Solo durante desarrollo.
-         * Luego quitaremos detail antes del release público.
-         */
         detail:
           error?.message || null
 
